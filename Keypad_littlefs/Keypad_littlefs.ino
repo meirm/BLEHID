@@ -41,7 +41,7 @@ PNG png;
 
 std::string deviceName = "TFT keypad";
 std::string vendorName = "Riunx";
-
+std::string configFile = "config.ini";
 BleKeyboard bleKeyboard(deviceName, vendorName, 100);
 
 Adafruit_FT6206 ts = Adafruit_FT6206();
@@ -100,8 +100,8 @@ void setup() {
 
   int x = 1;
   int y = 1;
-
-  loadPNGFile();
+  String prefix = loadCFGFile();
+  loadPNGFile(prefix);
   Serial.println("Ready to type");
 }
 
@@ -160,16 +160,41 @@ void loop(void) {
   }
 }
 //------------------------------------------------------------------------------------------
-void loadPNGFile() {
+
+String loadCFGFile() {
   // Scan LittleFS and load any *.png files
   File root = LittleFS.open("/", "r");
+  while (File file = root.openNextFile()) {
+    String strname = file.name();
+    Serial.println(file.name());
+    if (!file.isDirectory() && strname.endsWith("config.ini")) {
+      File ini = LittleFS.open(strname.c_str(), "r");
+      Serial.println("loading ini file");
+      char buffer[128];
+      while (ini.available()) {
+        int l = ini.readBytesUntil('\n', buffer, sizeof(buffer) - 1);
+        buffer[l] = 0;
+        if (buffer[0] == '#') continue; // comment line
+        String pieces = buffer;
+        Serial.println(pieces);
+        return pieces.c_str();
+      }
+    }
+  }
+}
+
+void loadPNGFile(String prefixFile) {
+  // Scan LittleFS and load any *.png files
+  File root = LittleFS.open("/", "r");
+  String fileNamePrefix = "/";
+  fileNamePrefix += prefixFile;
   while (File file = root.openNextFile()) {
     String strname = file.name();
     //strname = "/" + strname;
     Serial.println(file.name());
 
     // If it is not a directory and filename ends in .png then load it
-    if (!file.isDirectory() && strname.endsWith(".png")) {
+    if (!file.isDirectory() && strname.startsWith(fileNamePrefix) &&  strname.endsWith(".png")) {
       // Pass support callback function names to library
       Serial.println("loading image");
       int16_t rc = png.open(strname.c_str(), pngOpen, pngClose, pngRead, pngSeek, pngDraw);
@@ -188,12 +213,12 @@ void loadPNGFile() {
         // How long did rendering take...
         Serial.print(millis() - dt); Serial.println("ms");
       }
-    } else if (!file.isDirectory() && strname.endsWith(".csv")) {
+    } else if (!file.isDirectory() && strname.startsWith(fileNamePrefix) && strname.endsWith(".csv")) {
       File csv = LittleFS.open(strname.c_str(), "r");
       Serial.println("loading csv file");
       char buffer[128];
       while (csv.available()) {
-        int l = csv.readBytesUntil('\n', buffer, sizeof(buffer) -1);
+        int l = csv.readBytesUntil('\n', buffer, sizeof(buffer) - 1);
         buffer[l] = 0;
         if (buffer[0] == '#') continue; // comment line
         String pieces = buffer;
@@ -202,69 +227,69 @@ void loadPNGFile() {
         uint8_t code = 0;
         uint8_t mod = 0;
         int lastComma = 0;
-        x = (uint16_t) pieces.substring(0,pieces.indexOf(",")).toInt();
+        x = (uint16_t) pieces.substring(0, pieces.indexOf(",")).toInt();
         lastComma = pieces.indexOf(",");
-        y = (uint16_t) pieces.substring(lastComma + 1,pieces.indexOf(",",lastComma + 1)).toInt();
+        y = (uint16_t) pieces.substring(lastComma + 1, pieces.indexOf(",", lastComma + 1)).toInt();
         lastComma = pieces.indexOf(",", lastComma + 1);
-        w = (uint16_t) pieces.substring(lastComma + 1,pieces.indexOf(",",lastComma + 1)).toInt();
+        w = (uint16_t) pieces.substring(lastComma + 1, pieces.indexOf(",", lastComma + 1)).toInt();
         lastComma = pieces.indexOf(",", lastComma + 1);
-        h = (uint16_t) pieces.substring(lastComma + 1,pieces.indexOf(",",lastComma + 1)).toInt();
+        h = (uint16_t) pieces.substring(lastComma + 1, pieces.indexOf(",", lastComma + 1)).toInt();
         lastComma = pieces.indexOf(",", lastComma + 1);
-        String label = pieces.substring(lastComma + 2,pieces.indexOf(",",lastComma + 1) - 1);
+        String label = pieces.substring(lastComma + 2, pieces.indexOf(",", lastComma + 1) - 1);
         lastComma = pieces.indexOf(",", lastComma + 1);
-        String s_code = pieces.substring(lastComma + 1,pieces.indexOf(",",lastComma + 1));
+        String s_code = pieces.substring(lastComma + 1, pieces.indexOf(",", lastComma + 1));
         s_code.trim();
         lastComma = pieces.indexOf(",", lastComma + 1);
         if (s_code.startsWith("\"")) {
-          code = s_code.substring(0,s_code.indexOf("\""))[0];
-        }else if (s_code.startsWith("'")) {
-          code = s_code.substring(0,s_code.indexOf("'"))[0];
-        }else if (s_code.startsWith("KEY_NUM_PLUS")) {
+          code = s_code.substring(0, s_code.indexOf("\""))[0];
+        } else if (s_code.startsWith("'")) {
+          code = s_code.substring(0, s_code.indexOf("'"))[0];
+        } else if (s_code.startsWith("KEY_NUM_PLUS")) {
           code = KEY_NUM_PLUS;
-        }else if (s_code.startsWith("KEY_NUM_MINUS")) {
+        } else if (s_code.startsWith("KEY_NUM_MINUS")) {
           code = KEY_NUM_MINUS;
-        }else if (s_code.startsWith("KEY_NUM_SLASH")) {
+        } else if (s_code.startsWith("KEY_NUM_SLASH")) {
           code = KEY_NUM_SLASH;
-        }else if (s_code.startsWith("KEY_NUM_PERIOD")) {
+        } else if (s_code.startsWith("KEY_NUM_PERIOD")) {
           code = KEY_NUM_PERIOD;
-        }else if (s_code.startsWith("KEY_NUM_0")) {
+        } else if (s_code.startsWith("KEY_NUM_0")) {
           code = KEY_NUM_0;
-        }else if (s_code.startsWith("KEY_NUM_1")) {
+        } else if (s_code.startsWith("KEY_NUM_1")) {
           code = KEY_NUM_1;
-        }else if (s_code.startsWith("KEY_NUM_2")) {
+        } else if (s_code.startsWith("KEY_NUM_2")) {
           code = KEY_NUM_2;
-        }else if (s_code.startsWith("KEY_NUM_3")) {
+        } else if (s_code.startsWith("KEY_NUM_3")) {
           code = KEY_NUM_3;
-        }else if (s_code.startsWith("KEY_NUM_4")) {
+        } else if (s_code.startsWith("KEY_NUM_4")) {
           code = KEY_NUM_4;
-        }else if (s_code.startsWith("KEY_NUM_5")) {
+        } else if (s_code.startsWith("KEY_NUM_5")) {
           code = KEY_NUM_5;
-        }else if (s_code.startsWith("KEY_NUM_6")) {
+        } else if (s_code.startsWith("KEY_NUM_6")) {
           code = KEY_NUM_6;
-        }else if (s_code.startsWith("KEY_NUM_7")) {
+        } else if (s_code.startsWith("KEY_NUM_7")) {
           code = KEY_NUM_7;
-        }else if (s_code.startsWith("KEY_NUM_8")) {
+        } else if (s_code.startsWith("KEY_NUM_8")) {
           code = KEY_NUM_8;
-        }else if (s_code.startsWith("KEY_NUM_9")) {
+        } else if (s_code.startsWith("KEY_NUM_9")) {
           code = KEY_NUM_9;
-        }else {
+        } else {
           code = s_code.charAt(0);
         }
-        if (lastComma > -1){
+        if (lastComma > -1) {
           String s_mod = pieces.substring(lastComma + 1);
-          if (s_mod.indexOf("CTRL_MOD") > -1){
+          if (s_mod.indexOf("CTRL_MOD") > -1) {
             mod += 1;
           }
-          if (s_mod.indexOf("ALT_MOD") > -1){
+          if (s_mod.indexOf("ALT_MOD") > -1) {
             mod += 2;
           }
-          if (s_mod.indexOf("SHIFT_MOD") > -1){
+          if (s_mod.indexOf("SHIFT_MOD") > -1) {
             mod += 4;
           }
         }
-        label.toCharArray(buffer,5);
-         Serial << "x: " << x << ", y: " << y  << endl;
-        key.push_back(new BUTTON(x, y, w, h, buffer ,code, mod));
+        label.toCharArray(buffer, 5);
+        Serial << "x: " << x << ", y: " << y  << endl;
+        key.push_back(new BUTTON(x, y, w, h, buffer , code, mod));
       }
       csv.close();
     }
@@ -281,7 +306,7 @@ void loadPNGFile() {
 // render each image line to the TFT.  If you use a different TFT library
 // you will need to adapt this function to suit.
 // Callback function to draw pixels to the display
-void pngDraw(PNGDRAW *pDraw) {
+void pngDraw(PNGDRAW * pDraw) {
   uint16_t lineBuffer[MAX_IMAGE_WIDTH];
   png.getLineAsRGB565(pDraw, lineBuffer, PNG_RGB565_BIG_ENDIAN, 0xffffffff);
   tft.pushImage(xpos, ypos + pDraw->y, pDraw->iWidth, 1, lineBuffer);

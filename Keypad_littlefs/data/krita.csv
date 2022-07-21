@@ -1,0 +1,21 @@
+x,y,w,h,label,code,mod
+1, 81, 78, 78,"fit", KEY_NUM_2,NONE
+81, 81, 78, 78,"Zin",KEY_NUM_PLUS,GUI_MOD 
+161,81, 78, 78, "Zout", KEY_NUM_MINUS,GUI_MOD
+241, 81, 78, 78, "1:1", KEY_NUM_1,NONE
+1, 161, 78, 78, "^/", "r",GUI_MOD
+81, 161, 78, 78, "j", "j",NONE
+161, 161, 78, 78, "pick","I",SHIFT_MOD
+241, 161, 78, 78, "hist","h",NONE
+1, 241, 78, 78, "sampler", p,NONE
+81, 241, 78, 78, "gradient", g,NONE
+161, 241, 78, 78, "bucket", "f", NONE
+241, 241, 78, 78, "swap", "x",NONE
+1, 321, 78, 78, "Darken", "k", NONE
+81, 321, 78, 78, "Lighter", "l",NONE
+161, 321, 78, 78, "Brush increase", "]", NONE
+241, 321, 78, 78, "Brush decrease", "[",NONE
+1, 401, 78, 78, "[", "[",GUI_MOD
+81, 401, 78, 78, "move", "t",NONE
+161, 401, 78, 78, "multi","q",NONE
+241, 401, 78, 78, "]", "]",GUI_MOD
