@@ -24,35 +24,46 @@
 #include <LITTLEFS.h>
 #define FileSys LITTLEFS
 #define LittleFS LITTLEFS
-
 // Include the PNG decoder library
 #include <PNGdec.h>
-
+#include <Arduino.h>
+#include <Streaming.h>
+#include <Vector.h>
+#include "buttons.h"
 PNG png;
 
 #include <SPI.h>
 #include <TFT_eSPI.h>      // Hardware-specific library
 #include <Adafruit_FT6206.h>
-#include "menu.h"
-#include "image.h"
+
+
 #include <BleKeyboard.h>
-BleKeyboard bleKeyboard;
+
+std::string deviceName = "TFT keypad";
+std::string vendorName = "Riunx";
+
+BleKeyboard bleKeyboard(deviceName, vendorName, 100);
 
 Adafruit_FT6206 ts = Adafruit_FT6206();
 
 
 TFT_eSPI tft = TFT_eSPI(); // Invoke custom library
 
+const int ELEMENT_COUNT_MAX = 20;
+typedef Vector<BUTTON *> KEYS;
+BUTTON * storage_array[ELEMENT_COUNT_MAX];
 
-BUTTON * key[nr_buttons];
 //------------------------------------------------------------------------------------------
 
 int16_t xpos = 0;
 int16_t ypos = 0;
 
+KEYS key;
 void setup() {
+
   // Use serial port
   Serial.begin(115200);
+
   Serial.println("started");
   // Initialise the TFT screen
   if (!ts.begin(18, 19, 40)) {
@@ -65,8 +76,11 @@ void setup() {
     Serial.println("LittleFS initialisation failed!");
     while (1) yield(); // Stay here twiddling thumbs waiting
   }
-  
-  initButtons(key);
+  key.setStorage(storage_array);
+  Serial << "key.max_size(): " << key.max_size() << endl;
+
+  Serial << "key.size(): " << key.size() << endl;
+
 
   Serial.println("Starting BLE");
   bleKeyboard.begin();
@@ -87,7 +101,7 @@ void setup() {
   int x = 1;
   int y = 1;
 
-  
+  loadPNGFile();
   Serial.println("Ready to type");
 }
 
@@ -106,34 +120,37 @@ void loop(void) {
   }
 
   // / Check if any key coordinate boxes contain the touch coordinates
-  for (uint8_t b = 0; b < nr_buttons; b++) {
-    if (pressed && key[b]->contains(t_x, t_y)) {
-      key[b]->press(true);  // tell the button it is pressed
+  for (uint8_t b = 0; b < key.size(); b++) {
+    if (pressed && storage_array[b]->contains(t_x, t_y)) {
+      storage_array[b]->press(true);  // tell the button it is pressed
     } else {
-      key[b]->press(false);  // tell the button it is NOT pressed
+      storage_array[b]->press(false);  // tell the button it is NOT pressed
     }
   }
 
   // Check if any key has changed state
-  for (uint8_t b = 0; b < nr_buttons; b++) {
-    if (key[b]->justPressed()) {
-      if (key[b]->getCode() != '\0') {
+  for (uint8_t b = 0; b < key.size(); b++) {
+    if (storage_array[b]->justPressed()) {
+      if (storage_array[b]->getCode() != '\0') {
         if (bleKeyboard.isConnected()) {
-          Serial.println(key[b]->getCode()); // key[b]->getLabel());
-          if (key[b]->getModifier() != 0 ) {
-            if ( key[b]->getModifier() & CTRL_MOD) {bleKeyboard.press(KEY_LEFT_CTRL);Serial.println("ctrl pressed");}
-            if ( key[b]->getModifier() & ALT_MOD) bleKeyboard.press(KEY_LEFT_ALT);
-            if ( key[b]->getModifier() & SHIFT_MOD) bleKeyboard.press(KEY_LEFT_SHIFT);
-            bleKeyboard.press(key[b]->getCode());
-            bleKeyboard.release(key[b]->getCode());
-            if ( key[b]->getModifier() & CTRL_MOD) bleKeyboard.release(KEY_LEFT_CTRL);
-            if ( key[b]->getModifier() & ALT_MOD) bleKeyboard.release(KEY_LEFT_ALT);
-            if ( key[b]->getModifier() & SHIFT_MOD) bleKeyboard.release(KEY_LEFT_SHIFT);
-          
-          }else {
-          bleKeyboard.write(key[b]->getCode());
+          Serial.println(storage_array[b]->getCode()); // key[b]->getLabel());
+          if (storage_array[b]->getModifier() != 0 ) {
+            if ( storage_array[b]->getModifier() & CTRL_MOD) {
+              bleKeyboard.press(KEY_LEFT_CTRL);
+              Serial.println("ctrl pressed");
+            }
+            if ( storage_array[b]->getModifier() & ALT_MOD) bleKeyboard.press(KEY_LEFT_ALT);
+            if ( storage_array[b]->getModifier() & SHIFT_MOD) bleKeyboard.press(KEY_LEFT_SHIFT);
+            bleKeyboard.press(storage_array[b]->getCode());
+            bleKeyboard.release(storage_array[b]->getCode());
+            if ( storage_array[b]->getModifier() & CTRL_MOD) bleKeyboard.release(KEY_LEFT_CTRL);
+            if ( storage_array[b]->getModifier() & ALT_MOD) bleKeyboard.release(KEY_LEFT_ALT);
+            if ( storage_array[b]->getModifier() & SHIFT_MOD) bleKeyboard.release(KEY_LEFT_SHIFT);
+
+          } else {
+            bleKeyboard.write(storage_array[b]->getCode());
           }
-          
+
           delay(500);
         }
 
@@ -143,14 +160,14 @@ void loop(void) {
   }
 }
 //------------------------------------------------------------------------------------------
-void loadPNGFile(){
-// Scan LittleFS and load any *.png files
+void loadPNGFile() {
+  // Scan LittleFS and load any *.png files
   File root = LittleFS.open("/", "r");
   while (File file = root.openNextFile()) {
     String strname = file.name();
-    strname = "/" + strname;
+    //strname = "/" + strname;
     Serial.println(file.name());
-    
+
     // If it is not a directory and filename ends in .png then load it
     if (!file.isDirectory() && strname.endsWith(".png")) {
       // Pass support callback function names to library
@@ -170,11 +187,91 @@ void loadPNGFile(){
         tft.endWrite();
         // How long did rendering take...
         Serial.print(millis() - dt); Serial.println("ms");
-        return;
       }
+    } else if (!file.isDirectory() && strname.endsWith(".csv")) {
+      File csv = LittleFS.open(strname.c_str(), "r");
+      Serial.println("loading csv file");
+      char buffer[128];
+      while (csv.available()) {
+        int l = csv.readBytesUntil('\n', buffer, sizeof(buffer) -1);
+        buffer[l] = 0;
+        if (buffer[0] == '#') continue; // comment line
+        String pieces = buffer;
+        Serial.println(pieces);
+        uint16_t x, y, w, h;
+        uint8_t code = 0;
+        uint8_t mod = 0;
+        int lastComma = 0;
+        x = (uint16_t) pieces.substring(0,pieces.indexOf(",")).toInt();
+        lastComma = pieces.indexOf(",");
+        y = (uint16_t) pieces.substring(lastComma + 1,pieces.indexOf(",",lastComma + 1)).toInt();
+        lastComma = pieces.indexOf(",", lastComma + 1);
+        w = (uint16_t) pieces.substring(lastComma + 1,pieces.indexOf(",",lastComma + 1)).toInt();
+        lastComma = pieces.indexOf(",", lastComma + 1);
+        h = (uint16_t) pieces.substring(lastComma + 1,pieces.indexOf(",",lastComma + 1)).toInt();
+        lastComma = pieces.indexOf(",", lastComma + 1);
+        String label = pieces.substring(lastComma + 2,pieces.indexOf(",",lastComma + 1) - 1);
+        lastComma = pieces.indexOf(",", lastComma + 1);
+        String s_code = pieces.substring(lastComma + 1,pieces.indexOf(",",lastComma + 1));
+        s_code.trim();
+        lastComma = pieces.indexOf(",", lastComma + 1);
+        if (s_code.startsWith("\"")) {
+          code = s_code.substring(0,s_code.indexOf("\""))[0];
+        }else if (s_code.startsWith("'")) {
+          code = s_code.substring(0,s_code.indexOf("'"))[0];
+        }else if (s_code.startsWith("KEY_NUM_PLUS")) {
+          code = KEY_NUM_PLUS;
+        }else if (s_code.startsWith("KEY_NUM_MINUS")) {
+          code = KEY_NUM_MINUS;
+        }else if (s_code.startsWith("KEY_NUM_SLASH")) {
+          code = KEY_NUM_SLASH;
+        }else if (s_code.startsWith("KEY_NUM_PERIOD")) {
+          code = KEY_NUM_PERIOD;
+        }else if (s_code.startsWith("KEY_NUM_0")) {
+          code = KEY_NUM_0;
+        }else if (s_code.startsWith("KEY_NUM_1")) {
+          code = KEY_NUM_1;
+        }else if (s_code.startsWith("KEY_NUM_2")) {
+          code = KEY_NUM_2;
+        }else if (s_code.startsWith("KEY_NUM_3")) {
+          code = KEY_NUM_3;
+        }else if (s_code.startsWith("KEY_NUM_4")) {
+          code = KEY_NUM_4;
+        }else if (s_code.startsWith("KEY_NUM_5")) {
+          code = KEY_NUM_5;
+        }else if (s_code.startsWith("KEY_NUM_6")) {
+          code = KEY_NUM_6;
+        }else if (s_code.startsWith("KEY_NUM_7")) {
+          code = KEY_NUM_7;
+        }else if (s_code.startsWith("KEY_NUM_8")) {
+          code = KEY_NUM_8;
+        }else if (s_code.startsWith("KEY_NUM_9")) {
+          code = KEY_NUM_9;
+        }else {
+          code = s_code.charAt(0);
+        }
+        if (lastComma > -1){
+          String s_mod = pieces.substring(lastComma + 1);
+          if (s_mod.indexOf("CTRL_MOD") > -1){
+            mod += 1;
+          }
+          if (s_mod.indexOf("ALT_MOD") > -1){
+            mod += 2;
+          }
+          if (s_mod.indexOf("SHIFT_MOD") > -1){
+            mod += 4;
+          }
+        }
+        label.toCharArray(buffer,5);
+         Serial << "x: " << x << ", y: " << y  << endl;
+        key.push_back(new BUTTON(x, y, w, h, buffer ,code, mod));
+      }
+      csv.close();
     }
   }
 }
+
+
 
 
 //=========================================v==========================================

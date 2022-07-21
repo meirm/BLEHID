@@ -1,5 +1,9 @@
 #include <Arduino.h>
 
+#define CTRL_MOD 1
+#define ALT_MOD 2
+#define SHIFT_MOD 4
+
 class BUTTON{
   public:
   BUTTON(uint16_t x, uint16_t y, uint16_t w, uint16_t h, char label[5],uint8_t code, uint8_t modifier = 0);
